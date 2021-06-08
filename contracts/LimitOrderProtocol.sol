@@ -146,7 +146,11 @@ contract LimitOrderProtocol is
     }
 
     function cancelOrderRFQ(uint256 orderInfo) external {
-        _invalidator[msg.sender][uint64(orderInfo) >> 8] |= (1 << (orderInfo & 0xff));
+        cancelOrderRFQ(orderInfo, 0);
+    }
+
+    function cancelOrderRFQ(uint256 orderInfo, uint256 additionalMask) public {
+        _invalidator[msg.sender][uint64(orderInfo) >> 8] |= (1 << (orderInfo & 0xff)) | additionalMask;
     }
 
     function fillOrderRFQ(OrderRFQ memory order, bytes memory signature, uint256 makingAmount, uint256 takingAmount) external {
