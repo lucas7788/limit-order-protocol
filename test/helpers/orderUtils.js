@@ -28,9 +28,10 @@ const Order = [
     { name: 'interaction', type: 'bytes' },
 ];
 
-const name = '1inch Limit Order Protocol';
+const name = 'openocean Limit Order Protocol';
 const version = '2';
 
+//EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)
 function buildOrderData (chainId, verifyingContract, order) {
     return {
         primaryType: 'Order',

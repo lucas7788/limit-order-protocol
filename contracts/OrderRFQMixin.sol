@@ -2,16 +2,19 @@
 
 pragma solidity 0.8.10;
 
-import "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
-import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/draft-EIP712Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/SignatureCheckerUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 
 import "./helpers/AmountCalculator.sol";
 import "./libraries/Permitable.sol";
 
 /// @title RFQ Limit Order mixin
-abstract contract OrderRFQMixin is EIP712, AmountCalculator, Permitable {
-    using SafeERC20 for IERC20;
+abstract contract OrderRFQMixin is EIP712Upgradeable, AmountCalculator, Permitable {
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
     /// @notice Emitted when RFQ gets filled
     event OrderFilledRFQ(
@@ -21,8 +24,8 @@ abstract contract OrderRFQMixin is EIP712, AmountCalculator, Permitable {
 
     struct OrderRFQ {
         uint256 info;  // lowest 64 bits is the order id, next 64 bits is the expiration timestamp
-        IERC20 makerAsset;
-        IERC20 takerAsset;
+        IERC20Upgradeable makerAsset;
+        IERC20Upgradeable takerAsset;
         address maker;
         address allowedSender;  // equals to Zero address on public orders
         uint256 makingAmount;
@@ -102,7 +105,7 @@ abstract contract OrderRFQMixin is EIP712, AmountCalculator, Permitable {
         // Validate order
         require(order.allowedSender == address(0) || order.allowedSender == msg.sender, "LOP: private order");
         bytes32 orderHash = _hashTypedDataV4(keccak256(abi.encode(LIMIT_ORDER_RFQ_TYPEHASH, order)));
-        require(SignatureChecker.isValidSignatureNow(maker, orderHash, signature), "LOP: bad signature");
+        require(SignatureCheckerUpgradeable.isValidSignatureNow(maker, orderHash, signature), "LOP: bad signature");
 
         {  // Stack too deep
             uint256 info = order.info;

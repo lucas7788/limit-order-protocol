@@ -2,10 +2,12 @@
 
 pragma solidity 0.8.10;
 
-import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
-import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/draft-EIP712Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/SignatureCheckerUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
 
 import "./helpers/AmountCalculator.sol";
 import "./helpers/ChainlinkCalculator.sol";
@@ -17,14 +19,16 @@ import "./libraries/Permitable.sol";
 
 /// @title Regular Limit Order mixin
 abstract contract OrderMixin is
-    EIP712,
+    EIP712Upgradeable,
+    OwnableUpgradeable,
     AmountCalculator,
     ChainlinkCalculator,
     NonceManager,
     PredicateHelper,
     Permitable
 {
-    using Address for address;
+    using ECDSAUpgradeable for bytes32;
+    using AddressUpgradeable for address;
     using ArgumentsDecoder for bytes;
 
     /// @notice Emitted every time order gets filled, including partial fills
@@ -78,10 +82,19 @@ abstract contract OrderMixin is
     uint256 constant private _ORDER_DOES_NOT_EXIST = 0;
     uint256 constant private _ORDER_FILLED = 1;
 
+    address public operator;
+
     /// @notice Stores unfilled amounts for each order plus one.
     /// Therefore 0 means order doesn't exist and 1 means order was filled
     mapping(bytes32 => uint256) private _remaining;
 
+    event UpdateOperator(address oldOperator, address newOperator);
+
+    function updateOperator(address _operator) public onlyOwner {
+        address old = operator;
+        operator = _operator;
+        emit UpdateOperator(old, _operator);
+    }
     /// @notice Returns unfilled amount for order. Throws if order does not exist
     function remaining(bytes32 orderHash) external view returns(uint256) {
         uint256 amount = _remaining[orderHash];
@@ -180,6 +193,13 @@ abstract contract OrderMixin is
         return fillOrderTo(order, signature, makingAmount, takingAmount, thresholdAmount, target);
     }
 
+    function hashUnmuteMsg() public view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(LIMIT_ORDER_TYPEHASH, "fillGridOrder")));
+    }
+//    function verifySignature(bytes memory signature, bytes32 msg, address user) public view returns (bytes32) {
+//        (, bytes memory userUnmuteSig) = abi.decode(signature,(bytes,bytes));
+//        require(SignatureChecker.isValidSignatureNow(user, msg.toEthSignedMessageHash(), userUnmuteSig), "LOP: bad signature:user");
+//    }
     /// @notice Same as `fillOrder` but allows to specify funds destination instead of `msg.sender`
     /// @param order Order quote to fill
     /// @param signature Signature to confirm quote ownership
@@ -204,7 +224,13 @@ abstract contract OrderMixin is
             require(order.allowedSender == address(0) || order.allowedSender == msg.sender, "LOP: private order");
             if (remainingMakerAmount == _ORDER_DOES_NOT_EXIST) {
                 // First fill: validate order and permit maker asset
-                require(SignatureChecker.isValidSignatureNow(order.maker, orderHash, signature), "LOP: bad signature");
+                (bytes memory sig, bytes memory userUnmuteSig) = abi.decode(signature,(bytes,bytes));
+                if (userUnmuteSig.length > 2){
+                    require(SignatureCheckerUpgradeable.isValidSignatureNow(operator, orderHash, sig), "LOP: bad signature:operator");
+                    require(SignatureCheckerUpgradeable.isValidSignatureNow(order.maker, hashUnmuteMsg().toEthSignedMessageHash(), userUnmuteSig), "LOP: bad signature:user");
+                } else {
+                    require(SignatureCheckerUpgradeable.isValidSignatureNow(order.maker, orderHash, sig), "LOP: bad signature");
+                }
                 remainingMakerAmount = order.makingAmount;
                 if (order.permit.length >= 20) {
                     // proceed only if permit length is enough to store address
@@ -259,7 +285,7 @@ abstract contract OrderMixin is
         _makeCall(
             order.takerAsset,
             abi.encodePacked(
-                IERC20.transferFrom.selector,
+                IERC20Upgradeable.transferFrom.selector,
                 uint256(uint160(msg.sender)),
                 uint256(uint160(order.receiver == address(0) ? order.maker : order.receiver)),
                 takingAmount,
@@ -280,7 +306,7 @@ abstract contract OrderMixin is
         _makeCall(
             order.makerAsset,
             abi.encodePacked(
-                IERC20.transferFrom.selector,
+                IERC20Upgradeable.transferFrom.selector,
                 uint256(uint160(order.maker)),
                 uint256(uint160(target)),
                 makingAmount,
