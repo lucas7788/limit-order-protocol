@@ -6,7 +6,7 @@ require('hardhat-gas-reporter');
 require('dotenv').config();
 require("@nomiclabs/hardhat-waffle");
 
-const { privateKey, address ,privateKeyTest} = require('./secrets.json');
+const { ownerPrivateKey, privateKey, address ,privateKeyTest} = require('./secrets.json');
 
 module.exports = {
     solidity: {
@@ -21,7 +21,9 @@ module.exports = {
     etherscan: {
         // Your API key for Etherscan
         // Obtain one at https://bscscan.com/
-        apiKey: "d87255a6627542eba4eaa9d5278832e0"
+        //bsc  QQQ3E4UT98E7V6AAFRPEMYD21M1VG4HNHY
+        //bsc_test   d87255a6627542eba4eaa9d5278832e0
+        apiKey: "QQQ3E4UT98E7V6AAFRPEMYD21M1VG4HNHY"
     },
     networks: {
         bsc: {
@@ -34,9 +36,8 @@ module.exports = {
         bsc_mainnet: {
             url: 'https://bsc-dataseed.binance.org/',
             chainId: 56,
-            gas: 2000000,
             timeout: 10000000,
-            accounts: [privateKey],
+            accounts: [privateKey, ownerPrivateKey],
         },
     },
 };

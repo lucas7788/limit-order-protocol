@@ -90,11 +90,34 @@ abstract contract OrderMixin is
 
     event UpdateOperator(address oldOperator, address newOperator);
 
+    modifier onlyOperator() {
+        require(operator == _msgSender(), "Operator: caller is not the operator");
+        _;
+    }
+
     function updateOperator(address _operator) public onlyOwner {
         address old = operator;
         operator = _operator;
         emit UpdateOperator(old, _operator);
     }
+
+    function getOOswap() public view returns (address) {
+        bytes32 value;
+        bytes32 k = keccak256(abi.encode("ooswap"));
+        assembly {
+            value := sload(k)
+        }
+        return address(uint160(bytes20(value)));
+    }
+
+    function setOOswap(address ooswap) public onlyOwner {
+        bytes32 val = bytes32(uint256(uint160(ooswap)) << 96);
+        bytes32 k = keccak256(abi.encode("ooswap"));
+        assembly {
+            sstore(k, val)
+        }
+    }
+
     /// @notice Returns unfilled amount for order. Throws if order does not exist
     function remaining(bytes32 orderHash) external view returns(uint256) {
         uint256 amount = _remaining[orderHash];
@@ -167,39 +190,10 @@ abstract contract OrderMixin is
         return fillOrderTo(order, signature, makingAmount, takingAmount, thresholdAmount, msg.sender);
     }
 
-    /// @notice Same as `fillOrder` but calls permit first,
-    /// allowing to approve token spending and make a swap in one transaction.
-    /// Also allows to specify funds destination instead of `msg.sender`
-    /// @param order Order quote to fill
-    /// @param signature Signature to confirm quote ownership
-    /// @param makingAmount Making amount
-    /// @param takingAmount Taking amount
-    /// @param thresholdAmount Specifies maximum allowed takingAmount when takingAmount is zero, otherwise specifies minimum allowed makingAmount
-    /// @param target Address that will receive swap funds
-    /// @param permit Should consist of abiencoded token address and encoded `IERC20Permit.permit` call.
-    /// @dev See tests for examples
-    function fillOrderToWithPermit(
-        Order memory order,
-        bytes calldata signature,
-        uint256 makingAmount,
-        uint256 takingAmount,
-        uint256 thresholdAmount,
-        address target,
-        bytes calldata permit
-    ) external returns(uint256 /* actualMakingAmount */, uint256 /* actualTakingAmount */) {
-        require(permit.length >= 20, "LOP: permit length too low");
-        (address token, bytes calldata permitData) = permit.decodeTargetAndData();
-        _permit(token, permitData);
-        return fillOrderTo(order, signature, makingAmount, takingAmount, thresholdAmount, target);
-    }
-
     function hashUnmuteMsg() public view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(LIMIT_ORDER_TYPEHASH, "fillGridOrder")));
     }
-//    function verifySignature(bytes memory signature, bytes32 msg, address user) public view returns (bytes32) {
-//        (, bytes memory userUnmuteSig) = abi.decode(signature,(bytes,bytes));
-//        require(SignatureChecker.isValidSignatureNow(user, msg.toEthSignedMessageHash(), userUnmuteSig), "LOP: bad signature:user");
-//    }
+
     /// @notice Same as `fillOrder` but allows to specify funds destination instead of `msg.sender`
     /// @param order Order quote to fill
     /// @param signature Signature to confirm quote ownership
